@@ -4,6 +4,8 @@ Embedded firmware for the **NUCLEO-H723ZG** board. Reads temperature, humidity, 
 
 Built with [Embassy](https://embassy.dev/) on Rust.
 
+![lode-stm32](https://github.com/user-attachments/assets/a3be6681-b2a8-481c-9d3b-835d060538b2)
+
 ## Hardware
 
 | Component | Details                      |
