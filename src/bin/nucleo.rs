@@ -18,6 +18,7 @@ use embassy_stm32::{
 };
 use lode_stm32h723::{
     bme280::Bme280,
+    dns, http,
     leds::{self, BoardState},
     net,
 };
@@ -64,42 +65,40 @@ async fn main(spawner: Spawner) {
     }
     let p = embassy_stm32::init(config);
 
-    // Watchdog. Pet it each loop iteration.
-    // If main exits (HardError), petting stops and board resets after ~7s.
+    // Watchdog — unleashed immediately so hangs during DHCP/DNS also trigger a reset.
     let mut watchdog = IndependentWatchdog::new(p.IWDG1, 7_000_000);
+    watchdog.unleash();
 
-    // LEDs — verify PE1 is yellow on your board
     let red = Output::new(p.PB14, Level::Low, Speed::Low);
     let yellow = Output::new(p.PE1, Level::Low, Speed::Low);
     let green = Output::new(p.PB0, Level::Low, Speed::Low);
     spawner.spawn(leds::led_task(red, yellow, green)).unwrap();
 
-    // Ethernet — RMII pins on Nucleo-H723ZG
     let eth: net::Device = Ethernet::new(
         net::packet_queue(),
         p.ETH,
         Irqs,
-        p.PA1,     // ref_clk
-        p.PA7,     // crs_dv
-        p.PC4,     // rxd0
-        p.PC5,     // rxd1
-        p.PG13,    // txd0
-        p.PB13,    // txd1
-        p.PG11,    // tx_en
+        p.PA1,  // ref_clk
+        p.PA7,  // crs_dv
+        p.PC4,  // rxd0
+        p.PC5,  // rxd1
+        p.PG13, // txd0
+        p.PB13, // txd1
+        p.PG11, // tx_en
         MAC_ADDR,
         p.ETH_SMA,
-        p.PA2,     // mdio
-        p.PC1,     // mdc
+        p.PA2, // mdio
+        p.PC1, // mdc
     );
 
     let mut rng = Rng::new(p.RNG, Irqs);
-    let mut seed = [0u8; 8];
-    rng.fill_bytes(&mut seed);
+    let mut seed_bytes = [0u8; 8];
+    rng.fill_bytes(&mut seed_bytes);
+    let initial_seed = u64::from_le_bytes(seed_bytes);
 
-    let (stack, runner) = net::init_stack(eth, u64::from_le_bytes(seed));
+    let (stack, runner) = net::init_stack(eth, initial_seed);
     spawner.spawn(net::net_task(runner)).unwrap();
 
-    // BME280
     let i2c = I2c::new(
         p.I2C2,
         p.PB10,
@@ -116,12 +115,27 @@ async fn main(spawner: Spawner) {
     }
 
     info!("Waiting for DHCP...");
-    // WaitingDhcp is the initial state — yellow already blinking
     stack.wait_config_up().await;
     let ip = stack.config_v4().unwrap().address.address().octets();
     info!("Network up: {}.{}.{}.{}", ip[0], ip[1], ip[2], ip[3]);
+
+    // Resolve DNS before the send loop; each failed attempt blinks yellow.
+    info!("Resolving {}...", http::HOST);
+    loop {
+        leds::STATE.signal(BoardState::ResolvingDns);
+        watchdog.pet();
+        if dns::resolve(stack, http::HOST).await.is_some() {
+            break;
+        }
+        info!("DNS failed, retrying in 5s...");
+        embassy_time::Timer::after_secs(5).await;
+    }
+    info!("DNS OK");
+
     leds::STATE.signal(BoardState::Running);
-    watchdog.unleash();
+
+    // Each TLS session gets a unique seed derived from the hardware-RNG initial value.
+    let mut tls_seed = initial_seed;
 
     loop {
         let m = bme.read().unwrap();
@@ -134,11 +148,13 @@ async fn main(spawner: Spawner) {
             (m.humidity % 1024) * 100 / 1024,
         );
 
-        if net::send_reading(stack, &m).await {
+        tls_seed = tls_seed.wrapping_add(1);
+        if http::send_reading(stack, tls_seed, &m).await {
             watchdog.pet();
         } else {
             leds::STATE.signal(BoardState::SendFailed);
         }
+
         embassy_time::Timer::after_millis(500).await;
     }
 }

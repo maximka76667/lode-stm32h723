@@ -5,6 +5,7 @@ use embassy_time::Timer;
 
 pub enum BoardState {
     WaitingDhcp,
+    ResolvingDns,
     Running,
     SendFailed,
     HardError,
@@ -44,6 +45,20 @@ pub async fn led_task(
                     }
                 }
             },
+
+            // Each signal of ResolvingDns = one DNS attempt: yellow off then on.
+            BoardState::ResolvingDns => {
+                yellow.set_low();
+                match select(Timer::after_millis(300), STATE.wait()).await {
+                    Either::First(_) => {
+                        yellow.set_high();
+                        state = STATE.wait().await;
+                    }
+                    Either::Second(s) => {
+                        state = s;
+                    }
+                }
+            }
 
             BoardState::Running => {
                 green.set_high();

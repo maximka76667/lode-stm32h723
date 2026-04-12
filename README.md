@@ -1,6 +1,6 @@
 # lode-stm32h723
 
-Embedded firmware for the **NUCLEO-H723ZG** board. Reads temperature, humidity, and pressure from a BME280 sensor over I2C and POSTs the readings every 500ms to the [lode-api](https://github.com/maximka76667/lode-api-rust) backend over Ethernet.
+Embedded firmware for the **NUCLEO-H723ZG** board. Reads temperature, humidity, and pressure from a BME280 sensor over I2C and POSTs the readings every 500ms to the [lode-api](https://github.com/maximka76667/lode-api-rust) backend over Ethernet via HTTPS.
 
 Built with [Embassy](https://embassy.dev/) on Rust.
 
@@ -29,15 +29,17 @@ Built with [Embassy](https://embassy.dev/) on Rust.
 
 ```
 src/
-  lib.rs          — library root, declares modules
-  bme280.rs       — BME280 driver (generic over embedded-hal I2C)
-  net.rs          — Ethernet setup, DHCP, HTTP POST
-  leds.rs         — LED state machine
-  fmt.rs          — defmt logging helpers
+  lib.rs           — library root, declares modules
+  bme280.rs        — BME280 driver (generic over embedded-hal I2C)
+  net.rs           — Ethernet stack init and DHCP
+  dns.rs           — DNS resolution with retry
+  http.rs          — HTTPS POST via reqwless + embedded-tls
+  leds.rs          — LED state machine
+  fmt.rs           — defmt logging helpers
   bin/
-    nucleo.rs     — main firmware binary
+    nucleo.rs      — main firmware binary
     bme280-test.rs — standalone sensor test
-    hello.rs      — LED blink smoke test
+    hello.rs       — LED blink smoke test
 ```
 
 ## LED states
@@ -45,32 +47,36 @@ src/
 | LED             | State                                              |
 | --------------- | -------------------------------------------------- |
 | Yellow blinking | Waiting for DHCP                                   |
+| Yellow off→on   | Resolving DNS (one pulse per attempt)              |
 | Green solid     | Running, sending readings                          |
 | Red blinks 3×   | Send failed, retrying                              |
 | Red solid       | Hard error (BME280 not found), watchdog will reset |
 
 ## Watchdog
 
-The IWDG watchdog is unleashed after DHCP and BME280 init with a **7 second timeout**. It is only pet on a successful HTTP POST. If the backend is unreachable for 7 seconds straight the board resets and reconnects from scratch.
+The IWDG watchdog is unleashed immediately at startup with a **7 second timeout**. This means a hang at any stage — DHCP, DNS, or sending — triggers a full reset. The watchdog is pet on each successful HTTPS POST, and also on each DNS resolution attempt during startup.
 
-## Configuration
+## Backend
 
-Edit `src/net.rs` to point at your backend:
+Readings are sent to the production backend at `https://lode-api-rust.onrender.com/readings`.
+
+The firmware resolves the hostname via DNS on startup (retrying every 5 seconds until successful), then opens a new TLS connection for each POST. Certificate verification is skipped (`TlsVerify::None`) — suitable for a trusted private endpoint.
+
+To point at a different backend, edit `src/http.rs`:
 
 ```rust
-pub const SERVER_ADDR: [u8; 4] = [192, 168, 1, 136];
-pub const SERVER_HOST: &str = "192.168.1.136";
-pub const SERVER_PORT: u16 = 3111;
+pub const HOST: &str = "lode-api-rust.onrender.com";
+pub const URL: &str  = "https://lode-api-rust.onrender.com/readings";
 ```
 
 ## Building and flashing
 
 ```bash
-# Flash and run with RTT logging (requires probe-rs)
+# Development — flash and stream defmt logs via RTT (requires probe-rs)
 cargo run --bin nucleo
 
-# Flash only (standalone, no debugger)
-probe-rs download --chip STM32H723ZGIx target/thumbv7em-none-eabi/debug/nucleo
+# Production — fully optimized, flash only, board runs standalone
+cargo flash --bin nucleo --release --chip STM32H723ZGIx
 ```
 
 For standalone operation, power the board via the mini USB port (CN2) from any 5V USB charger or power bank.
