@@ -56,7 +56,7 @@ src/
 
 ## Watchdog
 
-The IWDG watchdog is unleashed immediately at startup with a **7 second timeout**. This means a hang at any stage — DHCP, DNS, or sending — triggers a full reset. The watchdog is pet on each successful HTTPS POST, and also on each DNS resolution attempt during startup.
+The IWDG watchdog is unleashed immediately at startup with a **20 seconds timeout**. This means a hang at any stage — DHCP, DNS, or sending — triggers a full reset. The watchdog is pet on each successful HTTPS POST, and also on each DNS resolution attempt during startup.
 
 ## Backend
 

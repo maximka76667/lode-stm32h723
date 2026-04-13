@@ -141,8 +141,8 @@ impl<I2C: I2c> Bme280<I2C> {
             dig_h1: c00[25],
             dig_h2: i16::from_le_bytes([c26[0], c26[1]]),
             dig_h3: c26[2],
-            dig_h4: ((c26[3] as i16) << 4) | ((c26[4] as i16) & 0x0F),
-            dig_h5: ((c26[5] as i16) << 4) | ((c26[4] as i16) >> 4),
+            dig_h4: ((c26[3] as i8 as i16) << 4) | ((c26[4] as i16) & 0x0F),
+            dig_h5: ((c26[5] as i8 as i16) << 4) | ((c26[4] as i16) >> 4),
             dig_h6: c26[6] as i8,
         })
     }
