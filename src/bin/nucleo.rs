@@ -66,7 +66,7 @@ async fn main(spawner: Spawner) {
     let p = embassy_stm32::init(config);
 
     // Watchdog — unleashed immediately so hangs during DHCP/DNS also trigger a reset.
-    let mut watchdog = IndependentWatchdog::new(p.IWDG1, 20_000_000);
+    let mut watchdog = IndependentWatchdog::new(p.IWDG1, 10_000_000);
     watchdog.unleash();
 
     let red = Output::new(p.PB14, Level::Low, Speed::Low);
@@ -155,6 +155,6 @@ async fn main(spawner: Spawner) {
             leds::STATE.signal(BoardState::SendFailed);
         }
 
-        embassy_time::Timer::after_secs(15).await;
+        embassy_time::Timer::after_secs(2).await;
     }
 }

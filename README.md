@@ -1,6 +1,6 @@
 # lode-stm32h723
 
-Embedded firmware for the **NUCLEO-H723ZG** board. Reads temperature, humidity, and pressure from a BME280 sensor over I2C and POSTs the readings every 500ms to the [lode-api](https://github.com/maximka76667/lode-api-rust) backend over Ethernet via HTTPS.
+Embedded firmware for the **NUCLEO-H723ZG** board. Reads temperature, humidity, and pressure from a BME280 sensor over I2C and POSTs the readings every 2 seconds to the [lode-api](https://github.com/maximka76667/lode-api-rust) backend over Ethernet via HTTPS.
 
 Built with [Embassy](https://embassy.dev/) on Rust.
 
@@ -56,7 +56,7 @@ src/
 
 ## Watchdog
 
-The IWDG watchdog is unleashed immediately at startup with a **20 seconds timeout**. This means a hang at any stage — DHCP, DNS, or sending — triggers a full reset. The watchdog is pet on each successful HTTPS POST, and also on each DNS resolution attempt during startup.
+The IWDG watchdog is unleashed immediately at startup with a **10 seconds timeout**. This means a hang at any stage — DHCP, DNS, or sending — triggers a full reset. The watchdog is pet on each successful HTTPS POST, and also on each DNS resolution attempt during startup.
 
 ## Backend
 
