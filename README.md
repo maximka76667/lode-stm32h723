@@ -1,6 +1,6 @@
 # lode-stm32h723
 
-Embedded firmware for the **NUCLEO-H723ZG** board. Reads temperature, humidity, and pressure from a BME280 sensor over I2C and POSTs the readings every 2 seconds to the [lode-api](https://github.com/maximka76667/lode-api-rust) backend over Ethernet via HTTPS.
+Embedded firmware for the **NUCLEO-H723ZG** board. Reads temperature, humidity, and pressure from a BME280 sensor over I2C and POSTs the readings every 2 seconds to the [lode-api](https://github.com/maximka76667/lode-api-rust) backend over Ethernet via HTTPS. Sensor readings and network status are shown live on an SSD1306 OLED display.
 
 Built with [Embassy](https://embassy.dev/) on Rust.
 
@@ -12,6 +12,7 @@ Built with [Embassy](https://embassy.dev/) on Rust.
 | --------- | ---------------------------- |
 | Board     | STM32 NUCLEO-H723ZG          |
 | Sensor    | BME280 (I2C, address `0x76`) |
+| Display   | SSD1306 128×64 OLED (I2C)    |
 | PHY       | LAN8742A (onboard RMII)      |
 
 ### Wiring
@@ -25,23 +26,35 @@ Built with [Embassy](https://embassy.dev/) on Rust.
 | VCC    | 3.3V       |
 | GND    | GND        |
 
+**SSD1306 → Nucleo (I2C1)**
+
+| SSD1306 | Nucleo pin        |
+| ------- | ----------------- |
+| SDA     | PB9 (D14/Arduino) |
+| SCL     | PB8 (D15/Arduino) |
+| VCC     | 3.3V              |
+| GND     | GND               |
+
 **Ethernet** — RJ45 connects directly to the onboard LAN8742A, no extra wiring needed.
 
 ## Project structure
 
 ```
 src/
-  lib.rs           — library root, declares modules
-  bme280.rs        — BME280 driver (generic over embedded-hal I2C)
-  net.rs           — Ethernet stack init and DHCP
-  dns.rs           — DNS resolution with retry
-  http.rs          — HTTPS POST via reqwless + embedded-tls
-  leds.rs          — LED state machine
-  fmt.rs           — defmt logging helpers
+  lib.rs            — library root, declares modules
+  bme280.rs         — BME280 driver (generic over embedded-hal I2C)
+  ssd1306.rs        — SSD1306 OLED driver (framebuffer + text rendering)
+  font.rs           — 5×7 bitmap font for ASCII 0x20–0x7E
+  net.rs            — Ethernet stack init and DHCP
+  dns.rs            — DNS resolution with retry
+  http.rs           — HTTPS POST via reqwless + embedded-tls
+  leds.rs           — LED state machine
+  fmt.rs            — defmt logging helpers
   bin/
-    nucleo.rs      — main firmware binary
-    bme280-test.rs — standalone sensor test
-    hello.rs       — LED blink smoke test
+    nucleo.rs       — main firmware binary
+    bme280-test.rs  — standalone BME280 sensor test
+    ssd1306-test.rs — standalone OLED display test
+    hello.rs        — LED blink smoke test
 ```
 
 ## LED states

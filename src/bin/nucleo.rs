@@ -5,6 +5,7 @@
 mod fmt;
 use fmt::info;
 
+use core::fmt::Write as _;
 use embassy_executor::Spawner;
 use embassy_stm32::{
     bind_interrupts, dma,
@@ -16,11 +17,13 @@ use embassy_stm32::{
     time::Hertz,
     wdg::IndependentWatchdog,
 };
+use heapless::String;
 use lode_stm32h723::{
     bme280::Bme280,
     dns, http,
     leds::{self, BoardState},
     net,
+    ssd1306::Ssd1306,
 };
 
 #[cfg(not(feature = "defmt"))]
@@ -114,6 +117,16 @@ async fn main(spawner: Spawner) {
         return;
     }
 
+    let i2c1 = I2c::new_blocking(p.I2C1, p.PB8, p.PB9, Default::default());
+    let mut display = Ssd1306::new(i2c1);
+    if display.init().is_err() {
+        leds::STATE.signal(BoardState::HardError);
+        return;
+    }
+    display.clear();
+    display.draw_str(0, 0, "Waiting DHCP...");
+    display.flush().ok();
+
     info!("Waiting for DHCP...");
     stack.wait_config_up().await;
     let ip = stack.config_v4().unwrap().address.address().octets();
@@ -134,8 +147,13 @@ async fn main(spawner: Spawner) {
 
     leds::STATE.signal(BoardState::Running);
 
+    let ip = stack.config_v4().unwrap().address.address().octets();
+    let mut ip_line: String<22> = String::new();
+    write!(ip_line, "IP:{}.{}.{}.{}", ip[0], ip[1], ip[2], ip[3]).ok();
+
     // Each TLS session gets a unique seed derived from the hardware-RNG initial value.
     let mut tls_seed = initial_seed;
+    let mut tx_ok = true;
 
     loop {
         let m = bme.read().unwrap();
@@ -151,9 +169,55 @@ async fn main(spawner: Spawner) {
         tls_seed = tls_seed.wrapping_add(1);
         if http::send_reading(stack, tls_seed, &m).await {
             watchdog.pet();
+            tx_ok = true;
         } else {
             leds::STATE.signal(BoardState::SendFailed);
+            tx_ok = false;
         }
+
+        let mut line: String<22> = String::new();
+        display.clear();
+
+        // T: XX.XX C
+        if m.temperature < 0 {
+            write!(
+                line,
+                "T: -{}.{:02} C",
+                (-m.temperature) / 100,
+                (-m.temperature) % 100
+            )
+            .ok();
+        } else {
+            write!(
+                line,
+                "T: {}.{:02} C",
+                m.temperature / 100,
+                m.temperature % 100
+            )
+            .ok();
+        }
+        display.draw_str(0, 0, &line);
+        line.clear();
+
+        // H: XX.X %
+        write!(
+            line,
+            "H: {}.{} %",
+            m.humidity / 1024,
+            (m.humidity % 1024) * 10 / 1024
+        )
+        .ok();
+        display.draw_str(0, 10, &line);
+        line.clear();
+
+        // P: XXXXXX Pa
+        write!(line, "P: {} Pa", m.pressure / 256).ok();
+        display.draw_str(0, 20, &line);
+
+        display.draw_str(0, 30, &ip_line);
+        display.draw_str(0, 40, if tx_ok { "TX: OK" } else { "TX: FAIL" });
+
+        display.flush().ok();
 
         embassy_time::Timer::after_secs(2).await;
     }
