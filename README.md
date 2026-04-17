@@ -6,6 +6,8 @@ Built with [Embassy](https://embassy.dev/) on Rust.
 
 ![lode-stm32](https://github.com/user-attachments/assets/a3be6681-b2a8-481c-9d3b-835d060538b2)
 
+<img width="1255" height="1255" alt="image" src="https://github.com/user-attachments/assets/7f45fd21-4750-4b35-8c1f-7bad711d1171" />
+
 ## Hardware
 
 | Component | Details                      |
