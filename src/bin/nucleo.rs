@@ -15,6 +15,7 @@ use embassy_stm32::{
     peripherals,
     rng::{self, Rng},
     time::Hertz,
+    usart::{Config as UsartConfig, Uart},
     wdg::IndependentWatchdog,
 };
 use heapless::String;
@@ -23,6 +24,7 @@ use lode_stm32h723::{
     dns, http,
     leds::{self, BoardState},
     net,
+    presence_reading_task::{self, PRESENCE},
     ssd1306::Ssd1306,
 };
 
@@ -40,6 +42,9 @@ bind_interrupts!(struct Irqs {
     I2C2_ER => i2c::ErrorInterruptHandler<peripherals::I2C2>;
     DMA1_STREAM4 => dma::InterruptHandler<peripherals::DMA1_CH4>;
     DMA1_STREAM5 => dma::InterruptHandler<peripherals::DMA1_CH5>;
+    USART2 => embassy_stm32::usart::InterruptHandler<peripherals::USART2>;
+    DMA1_STREAM0 => dma::InterruptHandler<peripherals::DMA1_CH0>;
+    DMA1_STREAM1 => dma::InterruptHandler<peripherals::DMA1_CH1>;
 });
 
 #[embassy_executor::main]
@@ -71,6 +76,22 @@ async fn main(spawner: Spawner) {
     // Watchdog — unleashed immediately so hangs during DHCP/DNS also trigger a reset.
     let mut watchdog = IndependentWatchdog::new(p.IWDG1, 10_000_000);
     watchdog.unleash();
+
+    let mut usart_config = UsartConfig::default();
+    usart_config.baudrate = 256_000;
+    let usart = Uart::new(
+        p.USART2,
+        p.PD6,
+        p.PD5,
+        p.DMA1_CH0,
+        p.DMA1_CH1,
+        Irqs,
+        usart_config,
+    )
+    .unwrap();
+    spawner
+        .spawn(presence_reading_task::presence_task(usart))
+        .unwrap();
 
     let red = Output::new(p.PB14, Level::Low, Speed::Low);
     let yellow = Output::new(p.PE1, Level::Low, Speed::Low);
@@ -157,6 +178,13 @@ async fn main(spawner: Spawner) {
 
     loop {
         let m = bme.read().unwrap();
+        let presence = PRESENCE.try_take();
+        if let Some(ref d) = presence {
+            info!(
+                "Presence — status: {} | mov: {} cm | sta: {} cm | det: {} cm",
+                d.status, d.movement_distance, d.stationary_distance, d.detection_distance
+            );
+        }
         info!(
             "Temp: {}.{} C | Pressure: {} Pa | Humidity: {}.{} %",
             m.temperature / 100,
@@ -167,7 +195,7 @@ async fn main(spawner: Spawner) {
         );
 
         tls_seed = tls_seed.wrapping_add(1);
-        if http::send_reading(stack, tls_seed, &m).await {
+        if http::send_reading(stack, tls_seed, &m, presence).await {
             watchdog.pet();
             tx_ok = true;
         } else {

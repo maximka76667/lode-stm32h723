@@ -1,6 +1,6 @@
 # lode-stm32h723
 
-Embedded firmware for the **NUCLEO-H723ZG** board. Reads temperature, humidity, and pressure from a BME280 sensor over I2C and POSTs the readings every 2 seconds to the [lode-api](https://github.com/maximka76667/lode-api-rust) backend over Ethernet via HTTPS. Sensor readings and network status are shown live on an SSD1306 OLED display.
+Embedded firmware for the **NUCLEO-H723ZG** board. Reads temperature, humidity, and pressure from a BME280 sensor over I2C, and human presence data from an LD2410C radar sensor over UART. POSTs all readings every 2 seconds to the [lode-api](https://github.com/maximka76667/lode-api-rust) backend over Ethernet via HTTPS. Sensor readings and network status are shown live on an SSD1306 OLED display.
 
 Built with [Embassy](https://embassy.dev/) on Rust.
 
@@ -10,12 +10,13 @@ Built with [Embassy](https://embassy.dev/) on Rust.
 
 ## Hardware
 
-| Component | Details                      |
-| --------- | ---------------------------- |
-| Board     | STM32 NUCLEO-H723ZG          |
-| Sensor    | BME280 (I2C, address `0x76`) |
-| Display   | SSD1306 128×64 OLED (I2C)    |
-| PHY       | LAN8742A (onboard RMII)      |
+| Component      | Details                      |
+| -------------- | ---------------------------- |
+| Board          | STM32 NUCLEO-H723ZG          |
+| Sensor         | BME280 (I2C, address `0x76`) |
+| Presence radar | LD2410C (UART, 256000 baud)  |
+| Display        | SSD1306 128×64 OLED (I2C)    |
+| PHY            | LAN8742A (onboard RMII)      |
 
 ### Wiring
 
@@ -37,6 +38,15 @@ Built with [Embassy](https://embassy.dev/) on Rust.
 | VCC     | 3.3V              |
 | GND     | GND               |
 
+**LD2410C → Nucleo (USART2)**
+
+| LD2410C | Nucleo pin |
+| ------- | ---------- |
+| TX      | PD6        |
+| RX      | PD5        |
+| VCC     | 5V         |
+| GND     | GND        |
+
 **Ethernet** — RJ45 connects directly to the onboard LAN8742A, no extra wiring needed.
 
 ## Project structure
@@ -49,14 +59,16 @@ src/
   font.rs           — 5×7 bitmap font for ASCII 0x20–0x7E
   net.rs            — Ethernet stack init and DHCP
   dns.rs            — DNS resolution with retry
-  http.rs           — HTTPS POST via reqwless + embedded-tls
-  leds.rs           — LED state machine
-  fmt.rs            — defmt logging helpers
+  http.rs                   — HTTPS POST via reqwless + embedded-tls
+  leds.rs                   — LED state machine
+  presence_reading_task.rs  — background task that reads LD2410C frames and signals the latest
+  fmt.rs                    — defmt logging helpers
   bin/
-    nucleo.rs       — main firmware binary
-    bme280-test.rs  — standalone BME280 sensor test
-    ssd1306-test.rs — standalone OLED display test
-    hello.rs        — LED blink smoke test
+    nucleo.rs               — main firmware binary
+    bme280-test.rs          — standalone BME280 sensor test
+    ssd1306-test.rs         — standalone OLED display test
+    ld2410c-test.rs         — standalone LD2410C radar test
+    hello.rs                — LED blink smoke test
 ```
 
 ## LED states
@@ -106,6 +118,14 @@ Each reading is sent as an HTTP POST to `/readings`:
 {
   "temperature_c": 23.15,
   "humidity_pct": 50.12,
-  "pressure_hpa": 1013.25
+  "pressure_hpa": 1013.25,
+  "presence_status": 3,
+  "movement_distance_cm": 120,
+  "movement_energy": 75,
+  "stationary_distance_cm": 200,
+  "stationary_energy": 60,
+  "detection_distance_cm": 120
 }
 ```
+
+Presence fields are omitted when no radar frame was available in the current 2-second window.

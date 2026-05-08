@@ -1065,6 +1065,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "ld2410c"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3a7020c6709a9530e14c316ee05fdde1d49907808debb991178a4e3643907e0"
+
+[[package]]
 name = "libc"
 version = "0.2.184"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1094,6 +1100,7 @@ dependencies = [
  "embedded-hal 1.0.0",
  "embedded-io-async 0.7.0",
  "heapless 0.9.2",
+ "ld2410c",
  "panic-halt",
  "panic-probe",
  "reqwless",

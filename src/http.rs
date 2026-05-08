@@ -10,6 +10,7 @@ use reqwless::headers::ContentType;
 use reqwless::request::{Method, RequestBuilder};
 
 use crate::bme280::Measurements;
+use ld2410c::TargetData;
 
 pub const HOST: &str = "lode-api-rust.onrender.com";
 pub const URL: &str = "https://lode-api-rust.onrender.com/readings";
@@ -68,7 +69,12 @@ static TLS_BUFFERS: TlsBuffers = TlsBuffers::new();
 /// POST a BME280 reading to the backend over HTTPS.
 /// `seed` must be unique per call — pass an incrementing counter seeded from
 /// the hardware RNG so each TLS session uses a distinct PRNG state.
-pub async fn send_reading(stack: Stack<'static>, seed: u64, m: &Measurements) -> bool {
+pub async fn send_reading(
+    stack: Stack<'static>,
+    seed: u64,
+    m: &Measurements,
+    presence: Option<TargetData>,
+) -> bool {
     let temp_int = m.temperature / 100;
     let temp_frac = m.temperature.unsigned_abs() % 100;
     let press_pa = m.pressure / 256;
@@ -77,13 +83,25 @@ pub async fn send_reading(stack: Stack<'static>, seed: u64, m: &Measurements) ->
     let hum_int = m.humidity / 1024;
     let hum_frac = (m.humidity % 1024) * 100 / 1024;
 
-    let mut body: String<128> = String::new();
+    let mut body: String<256> = String::new();
     write!(
         body,
-        r#"{{"temperature_c":{}.{:02},"humidity_pct":{}.{:02},"pressure_hpa":{}.{:02}}}"#,
+        r#"{{"temperature_c":{}.{:02},"humidity_pct":{}.{:02},"pressure_hpa":{}.{:02}"#,
         temp_int, temp_frac, hum_int, hum_frac, press_int, press_frac
     )
     .unwrap();
+
+    if let Some(d) = presence {
+        write!(
+            body,
+            r#","presence_status":{},"movement_distance_cm":{},"movement_energy":{},"stationary_distance_cm":{},"stationary_energy":{},"detection_distance_cm":{}"#,
+            d.status, d.movement_distance, d.movement_energy,
+            d.stationary_distance, d.stationary_energy, d.detection_distance
+        )
+        .unwrap();
+    }
+
+    write!(body, "}}").unwrap();
 
     let tcp = TcpClient::new(stack, &TCP_STATE.0);
     let dns = DnsSocket::new(stack);

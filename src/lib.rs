@@ -1,6 +1,7 @@
 #![no_std]
 
 pub mod bme280;
+pub mod presence_reading_task;
 pub mod dns;
 pub mod font;
 pub mod http;
