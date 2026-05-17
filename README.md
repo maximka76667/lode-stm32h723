@@ -8,6 +8,8 @@ Built with [Embassy](https://embassy.dev/) on Rust.
 
 <img width="1255" height="1255" alt="image" src="https://github.com/user-attachments/assets/7f45fd21-4750-4b35-8c1f-7bad711d1171" />
 
+<img width="1280" height="1280" alt="image" src="https://github.com/user-attachments/assets/dd6ee3ca-32e0-4633-817a-6947549ee820" />
+
 ## Hardware
 
 | Component      | Details                      |
