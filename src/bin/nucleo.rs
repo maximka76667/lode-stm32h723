@@ -153,11 +153,14 @@ async fn main(spawner: Spawner) {
     let ip = stack.config_v4().unwrap().address.address().octets();
     info!("Network up: {}.{}.{}.{}", ip[0], ip[1], ip[2], ip[3]);
 
+    display.clear();
+    display.draw_str(0, 0, "Resolving DNS...");
+    display.flush().ok();
+
     // Resolve DNS before the send loop; each failed attempt blinks yellow.
     info!("Resolving {}...", http::HOST);
     loop {
         leds::STATE.signal(BoardState::ResolvingDns);
-        watchdog.pet();
         if dns::resolve(stack, http::HOST).await.is_some() {
             break;
         }
@@ -170,16 +173,19 @@ async fn main(spawner: Spawner) {
 
     let ip = stack.config_v4().unwrap().address.address().octets();
     let mut ip_line: String<22> = String::new();
-    write!(ip_line, "IP:{}.{}.{}.{}", ip[0], ip[1], ip[2], ip[3]).ok();
+    write!(ip_line, "IP: {}.{}.{}.{}", ip[0], ip[1], ip[2], ip[3]).ok();
 
     // Each TLS session gets a unique seed derived from the hardware-RNG initial value.
     let mut tls_seed = initial_seed;
     let mut tx_ok = true;
+    // (status, movement_cm, stationary_cm) — kept across iterations for display
+    let mut last_presence: Option<(u8, u16, u16)> = None;
 
     loop {
         let m = bme.read().unwrap();
         let presence = PRESENCE.try_take();
         if let Some(ref d) = presence {
+            last_presence = Some((d.status, d.movement_distance, d.stationary_distance));
             info!(
                 "Presence — status: {} | mov: {} cm | sta: {} cm | det: {} cm",
                 d.status, d.movement_distance, d.stationary_distance, d.detection_distance
@@ -206,7 +212,6 @@ async fn main(spawner: Spawner) {
         let mut line: String<22> = String::new();
         display.clear();
 
-        // T: XX.XX C
         if m.temperature < 0 {
             write!(
                 line,
@@ -227,7 +232,6 @@ async fn main(spawner: Spawner) {
         display.draw_str(0, 0, &line);
         line.clear();
 
-        // H: XX.X %
         write!(
             line,
             "H: {}.{} %",
@@ -235,15 +239,33 @@ async fn main(spawner: Spawner) {
             (m.humidity % 1024) * 10 / 1024
         )
         .ok();
-        display.draw_str(0, 10, &line);
+        display.draw_str(0, 9, &line);
         line.clear();
 
-        // P: XXXXXX Pa
         write!(line, "P: {} Pa", m.pressure / 256).ok();
-        display.draw_str(0, 20, &line);
+        display.draw_str(0, 18, &line);
+        line.clear();
 
-        display.draw_str(0, 30, &ip_line);
-        display.draw_str(0, 40, if tx_ok { "TX: OK" } else { "TX: FAIL" });
+        let pres_label = match last_presence {
+            Some((0, _, _)) => "No target",
+            Some((1, _, _)) => "Moving",
+            Some((2, _, _)) => "Stationary",
+            Some((3, _, _)) => "Mov+Sta",
+            Some(_) => "Unknown",
+            None => "--",
+        };
+        write!(line, "Pres: {}", pres_label).ok();
+        display.draw_str(0, 27, &line);
+        line.clear();
+
+        if let Some((_, mov, sta)) = last_presence {
+            write!(line, "M: {}cm S: {}cm", mov, sta).ok();
+        }
+        display.draw_str(0, 36, &line);
+        line.clear();
+
+        display.draw_str(0, 45, &ip_line);
+        display.draw_str(0, 54, if tx_ok { "TX: OK" } else { "TX: FAIL" });
 
         display.flush().ok();
 
