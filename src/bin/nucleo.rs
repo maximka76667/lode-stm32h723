@@ -177,7 +177,8 @@ async fn main(spawner: Spawner) {
 
     // Each TLS session gets a unique seed derived from the hardware-RNG initial value.
     let mut tls_seed = initial_seed;
-    let mut tx_ok = true;
+    let mut tx_ok;
+
     // (status, movement_cm, stationary_cm) — kept across iterations for display
     let mut last_presence: Option<(u8, u16, u16)> = None;
 

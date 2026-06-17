@@ -87,7 +87,7 @@ impl<I2C: I2c> Bme280<I2C> {
             .write(ADDRESS, &[CTRL_HUM_REG, 0b001])
             .map_err(Error::I2c)?;
         self.i2c
-            .write(ADDRESS, &[CTRL_MEAS_REG, 0b_010_010_11])
+            .write(ADDRESS, &[CTRL_MEAS_REG, 0b010_010_11])
             .map_err(Error::I2c)?;
 
         Ok(())
@@ -149,9 +149,9 @@ impl<I2C: I2c> Bme280<I2C> {
 }
 
 fn compensate_temp(raw: i32, c: &CalibData) -> (i32, i32) {
-    let var1 = ((raw >> 3) - ((c.dig_t1 as i32) << 1)) * (c.dig_t2 as i32) >> 11;
-    let var2 = (((raw >> 4) - (c.dig_t1 as i32)) * ((raw >> 4) - (c.dig_t1 as i32)) >> 12)
-        * (c.dig_t3 as i32)
+    let var1 = (((raw >> 3) - ((c.dig_t1 as i32) << 1)) * (c.dig_t2 as i32)) >> 11;
+    let var2 = ((((raw >> 4) - (c.dig_t1 as i32)) * ((raw >> 4) - (c.dig_t1 as i32)) >> 12)
+        * (c.dig_t3 as i32))
         >> 14;
     let t_fine = var1 + var2;
     ((t_fine * 5 + 128) >> 8, t_fine)

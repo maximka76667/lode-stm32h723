@@ -126,13 +126,13 @@ impl<I2C: I2c> Ssd1306<I2C> {
     }
 
     pub fn draw_char(&mut self, x: usize, y: usize, c: u8) {
-        if c < 0x20 || c > 0x7E || x + 5 > 128 || y + 7 > 64 {
+        if !(0x20..=0x7E).contains(&c) || x + 5 > 128 || y + 7 > 64 {
             return;
         }
         let glyph = &FONT_5X7[(c - 0x20) as usize];
-        for col in 0..5usize {
+        for (col, &byte) in glyph.iter().enumerate().take(5) {
             for row in 0..7usize {
-                if glyph[col] & (1 << row) != 0 {
+                if byte & (1 << row) != 0 {
                     self.set_pixel(x + col, y + row, true);
                 }
             }

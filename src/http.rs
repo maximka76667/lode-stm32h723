@@ -55,6 +55,7 @@ impl TlsBuffers {
 
     /// Returns exclusive mutable references to both buffers.
     /// Caller must ensure no other reference to these buffers is live.
+    #[allow(clippy::mut_from_ref)]
     fn get(&self) -> (&mut [u8], &mut [u8]) {
         // SAFETY: upheld by the safety invariant on the type.
         unsafe { (&mut *self.read.get(), &mut *self.write.get()) }

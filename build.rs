@@ -10,7 +10,8 @@ fn main() {
         println!("cargo:warning=.env found");
         for line in contents.lines() {
             if let Some(val) = line.strip_prefix("API_KEY=") {
-                println!("cargo:warning=API_KEY found: {val}");
+                let masked = format!("{}{}", "*".repeat(val.len().saturating_sub(4)), &val[val.len().saturating_sub(4)..]);
+            println!("cargo:warning=API_KEY found: {masked}");
                 println!("cargo:rustc-env=API_KEY={val}");
             }
         }
