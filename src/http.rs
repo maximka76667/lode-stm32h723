@@ -14,6 +14,7 @@ use ld2410c::TargetData;
 
 pub const HOST: &str = "lode-api-rust.onrender.com";
 pub const URL: &str = "https://lode-api-rust.onrender.com/readings";
+const API_KEY: &str = env!("API_KEY");
 
 // ---------------------------------------------------------------------------
 // Safe wrappers around statics that require unsafe to construct
@@ -115,9 +116,14 @@ pub async fn send_reading(
         return false;
     };
 
-    req.body(body.as_bytes())
+    match req
+        .body(body.as_bytes())
         .content_type(ContentType::ApplicationJson)
+        .headers(&[("X-Api-Key", API_KEY)])
         .send(&mut rx_buf)
         .await
-        .is_ok()
+    {
+        Ok(resp) => resp.status.is_successful(),
+        Err(_) => false,
+    }
 }

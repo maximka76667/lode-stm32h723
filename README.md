@@ -102,6 +102,12 @@ pub const URL: &str  = "https://lode-api-rust.onrender.com/readings";
 
 ## Building and flashing
 
+Create a `.env` file in the project root with your API key (must match the backend's `API_KEY`):
+
+```env
+API_KEY=your-secret-key
+```
+
 ```bash
 # Development — flash and stream defmt logs via RTT (requires probe-rs)
 cargo run --bin nucleo
