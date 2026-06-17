@@ -87,7 +87,7 @@ impl<I2C: I2c> Bme280<I2C> {
             .write(ADDRESS, &[CTRL_HUM_REG, 0b001])
             .map_err(Error::I2c)?;
         self.i2c
-            .write(ADDRESS, &[CTRL_MEAS_REG, 0b010_010_11])
+            .write(ADDRESS, &[CTRL_MEAS_REG, 0b0100_1011])
             .map_err(Error::I2c)?;
 
         Ok(())
@@ -150,7 +150,7 @@ impl<I2C: I2c> Bme280<I2C> {
 
 fn compensate_temp(raw: i32, c: &CalibData) -> (i32, i32) {
     let var1 = (((raw >> 3) - ((c.dig_t1 as i32) << 1)) * (c.dig_t2 as i32)) >> 11;
-    let var2 = ((((raw >> 4) - (c.dig_t1 as i32)) * ((raw >> 4) - (c.dig_t1 as i32)) >> 12)
+    let var2 = (((((raw >> 4) - (c.dig_t1 as i32)) * ((raw >> 4) - (c.dig_t1 as i32))) >> 12)
         * (c.dig_t3 as i32))
         >> 14;
     let t_fine = var1 + var2;
@@ -162,15 +162,15 @@ fn compensate_pressure(raw: i32, t_fine: i32, c: &CalibData) -> u32 {
     let mut var2 = var1 * var1 * (c.dig_p6 as i64);
     var2 += (var1 * (c.dig_p5 as i64)) << 17;
     var2 += (c.dig_p4 as i64) << 35;
-    var1 = (var1 * var1 * (c.dig_p3 as i64) >> 8) + ((var1 * (c.dig_p2 as i64)) << 12);
-    var1 = ((1i64 << 47) + var1) * (c.dig_p1 as i64) >> 33;
+    var1 = ((var1 * var1 * (c.dig_p3 as i64)) >> 8) + ((var1 * (c.dig_p2 as i64)) << 12);
+    var1 = (((1i64 << 47) + var1) * (c.dig_p1 as i64)) >> 33;
     if var1 == 0 {
         return 0;
     }
     let mut p = 1048576i64 - raw as i64;
     p = ((p << 31) - var2) * 3125 / var1;
-    var1 = (c.dig_p9 as i64) * (p >> 13) * (p >> 13) >> 25;
-    var2 = (c.dig_p8 as i64) * p >> 19;
+    var1 = ((c.dig_p9 as i64) * (p >> 13) * (p >> 13)) >> 25;
+    var2 = ((c.dig_p8 as i64) * p) >> 19;
     p = ((p + var1 + var2) >> 8) + ((c.dig_p7 as i64) << 4);
     p as u32
 }
